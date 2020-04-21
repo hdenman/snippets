@@ -1,4 +1,6 @@
 #include <iostream>
+#include <functional>
+
 using namespace std;
 
 class C {
@@ -6,18 +8,31 @@ public:
   int value;
 };
 
-void combine(const C& a, const C& b, double mix, C* out) {
+using getter = function<const C&(void)>;
+
+void combine(getter get_a, getter get_b, double mix, C* out) {  
   if (mix == 1.0) {
+    const auto& a = get_a();
     out->value = a.value;
     return;
   }
 
   if (mix == 0.0) {
+    const auto& b = get_b();
     out->value = b.value;
     return;
   }
 
+  const auto& a = get_a();
+  const auto& b = get_b();
   out->value = (mix * a.value) + ((1.0 - mix) * b.value);
+}
+
+void combine(const C& a, const C& b, double mix, C* out) {
+  combine([&] {return a;},
+	  [&] {return b;},
+	  mix,
+	  out);
 }
 
 int main(int argc, char ** argv) {
