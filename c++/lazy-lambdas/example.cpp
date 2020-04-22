@@ -29,8 +29,8 @@ void combine(getter get_a, getter get_b, double mix, C* out) {
 }
 
 void combine(const C& a, const C& b, double mix, C* out) {
-  combine([&] {return a;},
-	  [&] {return b;},
+  combine([&]() -> const C& {return a;},
+	  [&]() -> const C& {return b;},
 	  mix,
 	  out);
 }
