@@ -2,6 +2,10 @@
 #include <functional>
 #include <string_view>
 
+// https://www.reddit.com/r/cpp/comments/62k8b0/lambda_initialization_trick_add_syntactic_sugar/
+// https://deviorel.wordpress.com/2015/01/27/obtaining-function-pointers-from-lambdas-in-c/
+// https://stackoverflow.com/questions/18889028/a-positive-lambda-what-sorcery-is-this
+
 using namespace std;
 
 // https://stackoverflow.com/questions/81870/is-it-possible-to-print-a-variables-type-in-standard-c
@@ -28,9 +32,44 @@ constexpr std::string_view type_name() {
   return name;
 }
 
+// https://stackoverflow.com/questions/39173519/template-type-deduction-with-stdfunction/39182901#39182901
+// https://stackoverflow.com/questions/41466082/how-to-convert-stdbind-or-lambda-to-stdfunction-in-deduced-context
+template<class T>
+struct AsFunction
+    : public AsFunction<decltype(&T::operator())>
+{};
+
+template<class ReturnType, class... Args>
+struct AsFunction<ReturnType(Args...)> {
+  using type = std::function<ReturnType(Args...)>;
+};
+
+template<class ReturnType, class... Args>
+struct AsFunction<ReturnType(*)(Args...)> {
+  using type = std::function<ReturnType(Args...)>;
+};
+
+
+template<class Class, class ReturnType, class... Args>
+struct AsFunction<ReturnType(Class::*)(Args...) const> {
+  using type = std::function<ReturnType(Args...)>;
+};
+
+template<class Class, class ReturnType>
+struct AsFunction<ReturnType(Class::*)() const> {
+  using type = std::function<ReturnType()>;
+};
+
+template<class F>
+auto toFunction( F f ) -> typename AsFunction<F>::type {
+  return {f};
+}
+
+
 class C {
 public:
   int value;
+  // C(const C&) = delete;
 };
 
 using getter = function<const C&(void)>;
@@ -53,11 +92,18 @@ void combine(getter get_a, getter get_b, double mix, C* out) {
   out->value = (mix * a.value) + ((1.0 - mix) * b.value);
 }
 
+// https://shaharmike.com/cpp/lambdas-and-functions/
+
 void combine(const C& a, const C& b, double mix, C* out) {
   auto lambda_1 = [&] {return a;};
   auto lambda_2 = [&]() -> const C& {return a;};
   cout << type_name<decltype(lambda_1)>() << endl;
   cout << type_name<decltype(lambda_2)>() << endl;
+
+  cout << type_name<decltype(toFunction(lambda_1))>() << endl;
+  cout << type_name<decltype(toFunction(lambda_2))>() << endl;
+
+  
   combine([&]() -> const C& {return a;},
 	  [&]() -> const C& {return b;},
 	  mix,
@@ -67,7 +113,7 @@ void combine(const C& a, const C& b, double mix, C* out) {
 int main(int argc, char ** argv) {
   C source_1{2};
   C source_2{4};
-  C dest;
+  C dest{0};
 
   combine(source_1, source_2, 0.8, &dest);
   cout << dest.value << endl;
